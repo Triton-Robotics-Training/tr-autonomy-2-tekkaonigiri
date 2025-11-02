@@ -18,7 +18,8 @@ class SpinnyRobot(Node):
         self.pubtimer = self.create_timer(1 / 30, self.timer_callback)
 
     def angle_sub_callback(self, message: Float32):
-        self.tm.set_joint_angle(message.data)
+        opposite_angle = -1.0 * message.data
+        self.tm.set_joint_angle(opposite_angle)
 
     def timer_callback(self):
         rendered_image = self.tm.render_image()
