@@ -29,6 +29,11 @@ public:
     publish_angle_ = this->create_publisher<std_msgs::msg::Float32>("desired_angle", 10);
         // assign publisher obj to member variable
         // desired_angle topic name
+    
+    current_angle_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+        "/current_angle", 10,
+        std::bind(&MinimalImagePublisher::current_angle_callback, this, std::placeholders::_1)
+        );
   }
 
 private:
@@ -92,19 +97,31 @@ private:
 
 
     // -- publish angle /desired_angle --
-    const double IMAGE_CENTER_X = 320.0;
+    const double IMAGE_WIDTH = 640.0;
+    const double IMAGE_CENTER_X = IMAGE_WIDTH / 2.0;
         // assume 640 pixel width
         // defines ideal center of image
             // if target at X position -> robot pointed correctly
-    const double PIXELS_TO_ANGLE_RATIO = 0.005;
-        // scale/gain factor
-        // used to tune sensitivity
-            // larger # = more aggressive response to small pixel offset
     
     double pixel_offset = x_cord - IMAGE_CENTER_X;
         // calc diff btwn target current position + center
-    double desired_angle = pixel_offset * PIXELS_TO_ANGLE_RATIO;
-        // convert pixel diff into physical angle
+    
+    // need to change to radians pi/2 and find max angle and max pixel width
+    const double PI = 3.1415926535;
+    const double Kp_BASE = (PI / 2.0) / IMAGE_WIDTH;    // about 0.00245 rad/pixel
+    const double Kp_TUNE = 0.5;     // start at 50% of calculated ratio
+        // tune it for safety margin
+        // pure val = instability = crazy spinning
+    
+    const double PIXELS_TO_ANGLE_RATIO = Kp_BASE * Kp_TUNE;
+        // scale/gain factor
+        // used to tune sensitivity
+            // larger # = more aggressive response to small pixel offset
+
+    double delta_angle = pixel_offset * PIXELS_TO_ANGLE_RATIO;
+    delta_angle = -delta_angle;
+        // calc correction angle
+    double desired_angle = static_cast<double>(current_angle_) + delta_angle;
 
     // create float32 msg (unique pointer for new msg)
     auto angle_msg = std::make_unique<std_msgs::msg::Float32>();
@@ -134,6 +151,10 @@ private:
     count_++;
   }
 
+  void current_angle_callback(
+        const sensor_msgs::msg::Float32::ConstSharedPtr msg) {
+    current_angle_ = msg->data();
+  }
 
   // member variables
 
@@ -145,7 +166,10 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr publish_angle_;
         // type for ros2 publisher smart pointer
         // publish_angle_ object
-
+  
+  float current_angle_ = 0.0f;
+  rclcpp::Subscription<sensor_msgs::msg::Float32>::SharedPtr current_angle_sub_;
+        // use to change to radians
 
 };
 
